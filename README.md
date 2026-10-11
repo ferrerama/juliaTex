@@ -56,9 +56,9 @@ The maximum is \juliav{round(maximum(f.(0:0.1:50)), digits = 4)}.   % a value in
 
 | | Windows | Linux |
 |---|---|---|
-| LaTeX with LuaLaTeX and latexmk | [TinyTeX](https://yihui.org/tinytex/) or TeX Live | TinyTeX or TeX Live (`texlive-luatex`, `latexmk`) |
+| LaTeX with LuaLaTeX and latexmk | [TinyTeX](https://yihui.org/tinytex/) or TeX Live | `sudo apt install texlive-luatex texlive-latex-extra latexmk` (or TinyTeX) |
 | Julia ≥ 1.10 | `winget install --id JuliaLang.Juliaup` | `curl -fsSL https://install.julialang.org \| sh` |
-| pandoc (only for `[md]`) | `winget install --id JohnMacFarlane.Pandoc` | `sudo apt install pandoc` (or your distribution's) |
+| pandoc ≥ 3 (only for `[md]`) | `winget install --id JohnMacFarlane.Pandoc` | `sudo apt install pandoc` (Ubuntu 24.04 or later) |
 | PDF viewer (optional) | `winget install --id SumatraPDF.SumatraPDF` | zathura |
 
 With TinyTeX, the packages the example uses:
@@ -68,6 +68,7 @@ tlmgr install latexmk titling listings
 ```
 
 `julia`, `pandoc`, `lualatex` and `latexmk` must be on the `PATH`.
+With MiKTeX instead of TinyTeX, latexmk also needs Perl (for example [Strawberry Perl](https://strawberryperl.com/)).
 
 ## Usage
 

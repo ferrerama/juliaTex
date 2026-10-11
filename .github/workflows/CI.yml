@@ -62,3 +62,41 @@ jobs:
             analysis.md
             analysis.log
             .juliatex/analysis/julia.log
+
+  readme-ubuntu:
+    # Follows the README literally on Ubuntu: distribution packages + the official Julia installer
+    name: README steps - Ubuntu (apt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install LaTeX and pandoc (apt)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends texlive-luatex texlive-latex-extra latexmk pandoc
+      - name: Install Julia (juliaup)
+        run: |
+          curl -fsSL https://install.julialang.org | sh -s -- --yes
+          echo "$HOME/.juliaup/bin" >> "$GITHUB_PATH"
+      - name: Install Julia packages
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+      - name: Compile the example from scratch
+        run: |
+          rm -f analysis.pdf analysis.md resources/*
+          latexmk analysis.tex
+      - name: Check the results
+        run: |
+          lualatex --version | head -1; pandoc --version | head -1; julia --version
+          test -s analysis.pdf
+          test -s analysis.md
+          test -s resources/damped.svg
+          ! grep -E 'Package juliatex Warning|^! ' analysis.log
+          grep -q 'The computed maximum is 0.8586' analysis.md
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: example-readme-ubuntu
+          path: |
+            analysis.pdf
+            analysis.md
+            analysis.log
+            .juliatex/analysis/julia.log
