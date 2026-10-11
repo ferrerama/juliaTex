@@ -36,7 +36,8 @@ jobs:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v3
       - name: Install Julia packages
-        run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+        # CorporateFinance.jl is not registered: Julia 1.11+ reads [sources] in Project.toml, 1.10 needs the URL
+        run: julia --project=. -e 'using Pkg; VERSION < v"1.11" && Pkg.add(url = "https://github.com/ferrerama/CorporateFinance.jl"); Pkg.instantiate(); Pkg.precompile()'
       - uses: r-lib/actions/setup-tinytex@v2
       - name: Install LaTeX packages
         shell: pwsh # on Windows tlmgr is a .bat, which bash cannot run
@@ -50,10 +51,11 @@ jobs:
         run: |
           test -s analysis.pdf
           test -s analysis.md
-          test -s resources/damped.pdf
-          test -s resources/damped.svg
+          test -s resources/bridge.pdf
+          test -s resources/bridge.svg
+          test -s resources/bridge.gif
           ! grep -E 'Package juliatex Warning|^! ' analysis.log
-          grep -q 'The computed maximum is 0.8586' analysis.md
+          grep -q 'the enterprise value is 1,998,670' analysis.md
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -93,9 +95,10 @@ jobs:
           lualatex --version | head -1; pandoc --version | head -1; julia --version
           test -s analysis.pdf
           test -s analysis.md
-          test -s resources/damped.svg
+          test -s resources/bridge.svg
+          test -s resources/bridge.gif
           ! grep -E 'Package juliatex Warning|^! ' analysis.log
-          grep -q 'The computed maximum is 0.8586' analysis.md
+          grep -q 'the enterprise value is 1,998,670' analysis.md
       - uses: actions/upload-artifact@v6
         if: always()
         with:
