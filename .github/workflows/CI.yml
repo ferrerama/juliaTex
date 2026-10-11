@@ -36,14 +36,9 @@ jobs:
       - uses: julia-actions/cache@v2
       - name: Install Julia packages
         run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
-      - uses: teatimeguest/setup-texlive-action@v3
-        with:
-          packages: |
-            scheme-basic
-            collection-luatex
-            collection-latexrecommended
-            latexmk
-            titling
+      - uses: r-lib/actions/setup-tinytex@v2
+      - name: Install LaTeX packages
+        run: tlmgr install latexmk titling listings
       - uses: r-lib/actions/setup-pandoc@v2
       - name: Compile the example from scratch
         run: |
