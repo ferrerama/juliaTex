@@ -29,15 +29,16 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
+      - uses: actions/checkout@v5
+      - uses: julia-actions/setup-julia@v3
         with:
           version: ${{ matrix.version }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - name: Install Julia packages
         run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
       - uses: r-lib/actions/setup-tinytex@v2
       - name: Install LaTeX packages
+        shell: pwsh # on Windows tlmgr is a .bat, which bash cannot run
         run: tlmgr install latexmk titling listings
       - uses: r-lib/actions/setup-pandoc@v2
       - name: Compile the example from scratch
@@ -52,7 +53,7 @@ jobs:
           test -s resources/damped.svg
           ! grep -E 'Package juliatex Warning|^! ' analysis.log
           grep -q 'The computed maximum is 0.8586' analysis.md
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: example-julia${{ matrix.version }}-${{ matrix.os }}
