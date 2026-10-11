@@ -1,0 +1,103 @@
+% juliatex: ejecutar Julia desde un documento LaTeX (LuaLaTeX + -shell-escape)
+%
+%   \begin{juliacode} ... \end{juliacode}   muestra el código y debajo su resultado
+%   \begin{juliarun}  ... \end{juliarun}    solo ejecuta (preparar datos, savefig, ...)
+%   \juliav{expr}                           inserta el valor de expr en el texto
+%   \juliagraphics[opciones]{archivo.pdf}   gráfica que Julia guardó con savefig
+%
+%   \usepackage[md]{juliatex}               además escribe <documento>.md (necesita pandoc)
+%
+% Todo el código comparte una misma sesión de Julia, en el orden del documento.
+% Corre en el entorno del Project.toml más cercano (o $JULIATEX_PROJECT), nunca en el global.
+% Los resultados se guardan en .juliatex/<documento>/; si el código no cambió,
+% Julia no vuelve a correr. Un servidor de Julia en segundo plano (juliatex_server.jl,
+% se apaga tras 30 min sin uso) mantiene la sesión y los paquetes cargados: si cambia
+% el bloque k solo se ejecuta de k en adelante. Sin servidor, se ejecuta todo de nuevo.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{juliatex}[2026/10/11 Julia en LaTeX]
+
+\newif\ifjuliatex@md
+\DeclareOption{md}{\juliatex@mdtrue}
+\ProcessOptions\relax
+
+\RequirePackage{iftex}
+\RequireLuaTeX
+\RequirePackage{xcolor}
+\RequirePackage{listings}
+\RequirePackage{graphicx}
+
+% juliatex.lua se busca como el .sty (TEXINPUTS), así basta con tener la carpeta juliatex/
+\directlua{dofile(kpse.find_file("juliatex.lua", "tex"))}
+\ifjuliatex@md\directlua{juliatex.md = true}\fi
+
+% --- Presentación ---------------------------------------------------------
+\definecolor{juliatex@fondo}{HTML}{F4F5F7}
+\definecolor{juliatex@clave}{HTML}{9558B2}  % morado de Julia
+\definecolor{juliatex@cadena}{HTML}{389826} % verde de Julia
+\definecolor{juliatex@coment}{HTML}{7A7F87}
+\definecolor{juliatex@salida}{HTML}{4063D8} % azul de Julia
+\definecolor{juliatex@error}{HTML}{CB3C33}  % rojo de Julia
+
+\lstdefinelanguage{Julia}{
+  morekeywords={abstract,baremodule,begin,break,catch,const,continue,do,else,
+    elseif,end,export,false,finally,for,function,global,if,import,in,isa,let,
+    local,macro,module,mutable,nothing,missing,primitive,quote,return,struct,
+    true,try,type,using,where,while},
+  sensitive=true,
+  morecomment=[l]\#,
+  morecomment=[n]{\#=}{=\#},
+  morestring=[b]",
+  morestring=[d]{"""},
+}
+
+\lstdefinestyle{juliatex@codigo}{
+  language=Julia,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{juliatex@clave}\bfseries,
+  stringstyle=\color{juliatex@cadena},
+  commentstyle=\color{juliatex@coment}\itshape,
+  backgroundcolor=\color{juliatex@fondo},
+  frame=single, rulecolor=\color{juliatex@fondo},
+  framesep=4pt, xleftmargin=4pt, xrightmargin=4pt,
+  columns=fullflexible, keepspaces=true, showstringspaces=false,
+  breaklines=true, upquote=true, extendedchars=true,
+  aboveskip=\medskipamount, belowskip=0pt,
+}
+\lstdefinestyle{juliatex@salida}{
+  basicstyle=\ttfamily\small\color{juliatex@salida},
+  frame=leftline, rulecolor=\color{juliatex@salida}, framerule=1.2pt,
+  xleftmargin=8pt, framesep=6pt,
+  columns=fullflexible, keepspaces=true, breaklines=true, extendedchars=true,
+  aboveskip=4pt, belowskip=\medskipamount,
+}
+\lstdefinestyle{juliatex@error}{
+  style=juliatex@salida,
+  basicstyle=\ttfamily\small\color{juliatex@error},
+  rulecolor=\color{juliatex@error},
+}
+
+\newcommand\JuliatexCodigo[1]{\lstinputlisting[style=juliatex@codigo]{#1}}
+\newcommand\JuliatexSalida[2]{\lstinputlisting[style=juliatex@#2]{#1}}
+% Resultado aún no calculado (primera pasada): como una referencia indefinida
+\newcommand\JuliatexPendiente{\textbf{??}}
+
+% --- Entornos y comandos --------------------------------------------------
+% Lua toma las líneas crudas hasta \end{...}: el código llega a Julia tal cual
+\newenvironment{juliacode}
+  {\directlua{juliatex.capturar("juliacode")}}
+  {\directlua{juliatex.cerrar("juliacode")}}
+\newenvironment{juliarun}
+  {\directlua{juliatex.capturar("juliarun")}}
+  {\directlua{juliatex.cerrar("juliarun")}}
+\newcommand\juliav[1]{%
+  \directlua{juliatex.valor("\luaescapestring{\detokenize{#1}}")}}
+
+% Gráfica guardada por Julia (savefig): se incluye una copia en .juliatex/ para que Julia
+% pueda regenerarla mientras LuaTeX aún escribe el PDF; en la primera pasada aún no existe
+\newcommand\juliagraphics[2][]{%
+  \directlua{juliatex.figura("\luaescapestring{#2}", "\luaescapestring{\detokenize{#1}}")}}
+\newcommand\JuliatexSinFigura[1]{%
+  \fbox{\parbox[c][3cm][c]{0.5\linewidth}{\centering\JuliatexPendiente\\
+    \footnotesize\texttt{#1} (Julia la genera al compilar)}}}
+
+\AtEndDocument{\directlua{juliatex.ejecutar()}}

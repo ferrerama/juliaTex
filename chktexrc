@@ -1,0 +1,14 @@
+# juliatex: el código de Julia no es texto LaTeX (chktex en Windows lee "chktexrc")
+VerbEnvir
+{
+    verbatim comment listing verbatimtab rawhtml errexam picture texdraw
+    filecontents pgfpicture tikzpicture minted lstlisting IPA
+    juliacode juliarun
+}
+
+WipeArg
+{
+    \label:{} \ref:{} \eqref:{} \vref:{} \pageref:{} \index:[]{}
+    \cite:[][]{} \nocite:{}
+    \juliav:{}
+}

@@ -1,0 +1,52 @@
+\documentclass[a4paper]{article}
+\usepackage[margin=2.5cm]{geometry} % márgenes de article por defecto: ~4 cm
+\usepackage{titling}
+\setlength{\droptitle}{-2cm} % \maketitle deja mucho aire arriba del título
+\usepackage[spanish]{babel}
+\usepackage{amsmath}
+\usepackage[md]{juliatex} % [md]: además analisis.md (pandoc)
+
+\title{Análisis de Datos Científicos}
+\author{Miguel Ferrera}
+
+\begin{document}
+\maketitle
+
+\section{Introducción al modelo}
+
+Analizamos una función trigonométrica amortiguada, definida por cada dato nuevo.
+\begin{equation}
+  f(x) = e^{-0.1x} \sin(x).
+\end{equation}
+
+\section{Simulación en Julia}
+
+Definimos la función y evaluamos algunos puntos:
+
+\begin{juliacode}
+f(x) = exp(-0.1x) * sin(x)
+x = 0:0.1:50
+println("Puntos evaluados: ", length(x))
+round.(f.(0:2:8), digits = 3)
+\end{juliacode}
+
+La gráfica se genera aparte, sin mostrar el código dependiente:
+
+\begin{juliarun}
+using Plots
+plot(x, f.(x), label = "f(x)", lw = 2, xlabel = "Tiempo", ylabel = "Amplitud")
+savefig("amortiguada.pdf")
+savefig("amortiguada.svg") # para analisis.md (GitHub no muestra PDF)
+\end{juliarun}
+
+\begin{figure}[htbp]
+  \centering
+  \juliagraphics[width=0.75\linewidth]{amortiguada.pdf}
+  \caption{Función amortiguada generada por Julia al compilar.}%
+  \label{fig:amortiguada}
+\end{figure}
+
+Como se ve en la figura~\ref{fig:amortiguada}, la amplitud decrece
+exponencialmente. El máximo calculado es \juliav{round(maximum(f.(x)), digits = 4)}.
+
+\end{document}

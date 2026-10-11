@@ -1,0 +1,17 @@
+# LaTeX
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.out
+*.toc
+# juliatex: resultados de Julia (se regeneran al compilar)
+.juliatex/
+# Gráficas que genera Julia (analisis.pdf y analisis.md sí se suben, para verlos en GitHub)
+amortiguada.pdf
+# Julia: cada quien resuelve las versiones con Pkg.instantiate()
+Manifest.toml
+# Plugins de nvim/init.lua
+nvim/.lazy/
+nvim/lazy-lock.json
