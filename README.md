@@ -1,5 +1,9 @@
 # juliatex: Julia inside LaTeX
 
+[![CI](https://github.com/ferrerama/juliaTex/actions/workflows/CI.yml/badge.svg)](https://github.com/ferrerama/juliaTex/actions/workflows/CI.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Julia](https://img.shields.io/badge/Julia-1.10%2B-9558B2?logo=julia)](https://julialang.org)
+
 Write Julia code inside your `.tex` and, when you compile, its results (text, values and plots) end up in the PDF.
 With the `[md]` option you also get a `.md` with the same results, ready to be viewed on GitHub.
 
@@ -34,6 +38,7 @@ The maximum is \juliav{round(maximum(f.(0:0.1:50)), digits = 4)}.   % a value in
 | `Project.toml` | The Julia environment of the example (only `Plots`) |
 | `.latexmkrc` | LuaLaTeX with `-shell-escape`, and tells LaTeX where the package is |
 | `nvim/` | Optional minimal Neovim setup |
+| `.github/workflows/CI.yml` | Compiles the example on every push (Linux and Windows) |
 
 ## How it works
 
@@ -74,6 +79,12 @@ latexmk analysis.tex
 ```
 
 The `.latexmkrc` already asks for LuaLaTeX with `-shell-escape` (needed to launch Julia) and tells LaTeX the package is in `juliatex/`: nothing has to be installed system-wide.
+
+> [!WARNING]
+> `-shell-escape` lets the document run programs on your computer, and the Julia code in a `.tex` runs with your user's permissions.
+> Only compile documents you trust, as you would only run scripts you trust.
+
+The CI workflow compiles the example from scratch on Linux and Windows, with Julia 1.10 (LTS) and the latest 1.x.
 
 For your own document, copy `juliatex/`, `.latexmkrc` and `Project.toml` (with the Julia packages you use) to its folder.
 

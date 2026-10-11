@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref == '' && github.run_number || '' }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  example:
+    name: Example - Julia ${{ matrix.version }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.10'   # LTS
+          - '1'      # latest stable 1.x
+        os:
+          - ubuntu-latest
+          - windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v2
+      - name: Install Julia packages
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+      - uses: teatimeguest/setup-texlive-action@v3
+        with:
+          packages: |
+            scheme-basic
+            collection-luatex
+            collection-latexrecommended
+            latexmk
+            titling
+      - uses: r-lib/actions/setup-pandoc@v2
+      - name: Compile the example from scratch
+        run: |
+          rm -f analysis.pdf analysis.md resources/*
+          latexmk analysis.tex
+      - name: Check the results
+        run: |
+          test -s analysis.pdf
+          test -s analysis.md
+          test -s resources/damped.pdf
+          test -s resources/damped.svg
+          ! grep -E 'Package juliatex Warning|^! ' analysis.log
+          grep -q 'The computed maximum is 0.8586' analysis.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: example-julia${{ matrix.version }}-${{ matrix.os }}
+          path: |
+            analysis.pdf
+            analysis.md
+            analysis.log
+            .juliatex/analysis/julia.log

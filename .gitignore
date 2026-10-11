@@ -12,6 +12,8 @@
 resources/*.pdf
 # Julia: everyone resolves versions with Pkg.instantiate()
 Manifest.toml
+# Private notes (not published)
+notes/
 # nvim/init.lua plugins
 nvim/.lazy/
 nvim/lazy-lock.json
