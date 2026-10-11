@@ -1,4 +1,4 @@
-# juliatex: el código de Julia no es texto LaTeX (chktex en Windows lee "chktexrc")
+# juliatex: Julia code is not LaTeX text (chktex reads "chktexrc" on Windows, ".chktexrc" on Linux)
 VerbEnvir
 {
     verbatim comment listing verbatimtab rawhtml errexam picture texdraw

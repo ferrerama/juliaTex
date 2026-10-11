@@ -1,56 +1,56 @@
-# juliatex: ejecuta los bloques que juliatex.lua dejó en <dir>/NNN.jl, en orden y en
-# una misma sesión. Por cada bloque escribe:
-#   NNN.out     lo que imprimió + el valor final (juliacode) o solo el valor (\juliav)
-#   NNN.status  "ok" o "error"
-# Un error en un bloque se muestra en el documento y los siguientes siguen corriendo.
+# juliatex: runs the blocks that juliatex.lua left in <dir>/NNN.jl, in order and in
+# a single session. For each block it writes:
+#   NNN.out     what it printed + the final value (juliacode) or just the value (\juliav)
+#   NNN.status  "ok" or "error"
+# An error in a block is shown in the document and the following blocks keep running.
 #
-# Como script (julia juliatex.jl <dir>) ejecuta todo en Main: es el modo de respaldo.
-# juliatex_server.jl incluye este archivo y usa ejecutar_bloques con una sesión viva.
+# As a script (julia juliatex.jl <dir>) it runs everything in Main: the fallback mode.
+# juliatex_server.jl includes this file and uses run_blocks with a live session.
 
-ENV["GKSwstype"] = "100"  # GR (Plots) sin abrir ventanas
+ENV["GKSwstype"] = "100"  # GR (Plots) without opening windows
 
-archivo(dir, n, ext) = joinpath(dir, string(lpad(n, 3, '0'), '.', ext))
+blockfile(dir, n, ext) = joinpath(dir, string(lpad(n, 3, '0'), '.', ext))
 
-# Valor final como en el REPL: no se muestra si es nothing o si el bloque termina en ;
-function mostrar_valor(io, valor, codigo)
-    (valor === nothing || endswith(rstrip(codigo), ';')) && return
-    show(IOContext(io, :limit => true, :displaysize => (30, 90)), MIME"text/plain"(), valor)
+# Final value as in the REPL: not shown if it is nothing or if the block ends with ;
+function show_value(io, value, code)
+    (value === nothing || endswith(rstrip(code), ';')) && return
+    show(IOContext(io, :limit => true, :displaysize => (30, 90)), MIME"text/plain"(), value)
     println(io)
 end
 
-# Ejecuta los bloques desde..fin de dir en el módulo mod
-function ejecutar_bloques(dir, tipos, mod::Module, desde::Int = 1)
+# Runs blocks from..end of dir in module mod
+function run_blocks(dir, kinds, mod::Module, from::Int = 1)
     open(joinpath(dir, "julia.log"), "w") do log
-        for n in desde:length(tipos)
-            tipo = tipos[n]
-            codigo = read(archivo(dir, n, "jl"), String)
-            estado = "ok"
-            open(archivo(dir, n, "out"), "w") do io
+        for n in from:length(kinds)
+            kind = kinds[n]
+            code = read(blockfile(dir, n, "jl"), String)
+            state = "ok"
+            open(blockfile(dir, n, "out"), "w") do io
                 try
-                    if tipo == "valor"
-                        print(io, Base.invokelatest(Core.eval, mod, Meta.parse(codigo)))
+                    if kind == "value"
+                        print(io, Base.invokelatest(Core.eval, mod, Meta.parse(code)))
                     else
-                        valor = redirect_stdout(io) do
+                        value = redirect_stdout(io) do
                             redirect_stderr(io) do
-                                include_string(mod, codigo, "bloque $n")
+                                include_string(mod, code, "block $n")
                             end
                         end
-                        tipo == "juliacode" && Base.invokelatest(mostrar_valor, io, valor, codigo)
+                        kind == "juliacode" && Base.invokelatest(show_value, io, value, code)
                     end
                 catch err
-                    estado = "error"
+                    state = "error"
                     bt = catch_backtrace()
                     msg = sprint(showerror, err isa LoadError ? err.error : err)
                     println(io, "ERROR: ", msg)
-                    println(log, "bloque $n: ", sprint(showerror, err, bt))
+                    println(log, "block $n: ", sprint(showerror, err, bt))
                 end
             end
-            write(archivo(dir, n, "status"), estado)
+            write(blockfile(dir, n, "status"), state)
         end
     end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     dir = ARGS[1]
-    ejecutar_bloques(dir, readlines(joinpath(dir, "tipos")), Main)
+    run_blocks(dir, readlines(joinpath(dir, "kinds")), Main)
 end

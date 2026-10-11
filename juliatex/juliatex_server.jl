@@ -1,78 +1,78 @@
-# juliatex: servidor de Julia en segundo plano (lo lanza juliatex.lua si no está corriendo)
-#   julia --project=<env> juliatex_server.jl <archivo-de-puerto>
-# Escucha en 127.0.0.1. Cada petición es una línea con la carpeta .juliatex/<doc> (absoluta);
-# responde "ok" al terminar. Guarda una sesión (módulo) por documento: si cambió el bloque k,
-# los anteriores conservan su resultado y solo se ejecuta de k en adelante, con los paquetes
-# ya cargados. Si cambia el primer bloque la sesión empieza de cero.
-# Se apaga solo tras 30 minutos sin peticiones.
+# juliatex: background Julia server (juliatex.lua starts it if it is not running)
+#   julia --project=<env> juliatex_server.jl <port-file>
+# Listens on 127.0.0.1. Each request is one line with the .juliatex/<doc> folder (absolute);
+# it answers "ok" when done. It keeps one session (module) per document: if block k changed,
+# the earlier ones keep their output and only blocks k onwards run, with the packages
+# already loaded. If the first block changes, the session starts from scratch.
+# It shuts down by itself after 30 minutes without requests.
 
 using Sockets
 include(joinpath(@__DIR__, "juliatex.jl"))
 
-mutable struct Sesion
+mutable struct Session
     mod::Module
-    huellas::Vector{String}
+    hashes::Vector{String}
 end
 
-const sesiones = Dict{String,Sesion}()
-const archivo_puerto = ARGS[1]
-const inactividad = 30 * 60
-ultimo_uso = time()
+const sessions = Dict{String,Session}()
+const port_file = ARGS[1]
+const idle_timeout = 30 * 60
+last_used = time()
 
-function atender(dir)
-    tipos = readlines(joinpath(dir, "tipos"))
-    huellas = readlines(joinpath(dir, "huellas"))
-    s = get(sesiones, dir, nothing)
-    # Primer bloque distinto (o sin resultado en disco) respecto a la última ejecución
+function handle(dir)
+    kinds = readlines(joinpath(dir, "kinds"))
+    hashes = readlines(joinpath(dir, "hashes"))
+    s = get(sessions, dir, nothing)
+    # First block that differs (or has no output on disk) from the last run
     k = 1
     if s !== nothing
-        while k <= min(length(huellas), length(s.huellas)) &&
-              huellas[k] == s.huellas[k] && isfile(archivo(dir, k, "out"))
+        while k <= min(length(hashes), length(s.hashes)) &&
+              hashes[k] == s.hashes[k] && isfile(blockfile(dir, k, "out"))
             k += 1
         end
     end
     if s === nothing || k == 1
-        s = Sesion(Module(:JuliaTeX), String[])
-        sesiones[dir] = s
+        s = Session(Module(:JuliaTeX), String[])
+        sessions[dir] = s
     end
-    # El código corre en la carpeta del .tex (savefig("x.pdf") queda junto al documento)
+    # The code runs in the .tex folder (savefig("x.pdf") ends up next to the document)
     cd(dirname(dirname(dir))) do
-        ejecutar_bloques(dir, tipos, s.mod, k)
+        run_blocks(dir, kinds, s.mod, k)
     end
-    s.huellas = huellas
+    s.hashes = hashes
     return k
 end
 
 function main()
-    # Fuera de cualquier carpeta de documentos (Windows no deja borrar la carpeta actual
-    # de un proceso); cada petición entra y sale de la suya con cd(...) do
+    # Outside any document folder (Windows does not let you delete a process's current
+    # folder); each request enters and leaves its own with cd(...) do
     cd(tempdir())
-    puerto, servidor = listenany(ip"127.0.0.1", 8760)
-    tmp = archivo_puerto * ".tmp"
-    write(tmp, string(puerto, "\n", getpid(), "\n"))
-    mv(tmp, archivo_puerto; force = true)
-    atexit(() -> rm(archivo_puerto; force = true))
+    port, server = listenany(ip"127.0.0.1", 8760)
+    tmp = port_file * ".tmp"
+    write(tmp, string(port, "\n", getpid(), "\n"))
+    mv(tmp, port_file; force = true)
+    atexit(() -> rm(port_file; force = true))
     Timer(60; interval = 60) do _
-        if time() - ultimo_uso > inactividad
-            close(servidor)
+        if time() - last_used > idle_timeout
+            close(server)
         end
     end
-    while isopen(servidor)
+    while isopen(server)
         sock = try
-            accept(servidor)
+            accept(server)
         catch
             break
         end
         try
             dir = readline(sock)
-            k = atender(dir)
+            k = handle(dir)
             println(sock, "ok ", k)
         catch err
             println(stderr, sprint(showerror, err, catch_backtrace()))
             try println(sock, "error") catch end
         finally
             close(sock)
-            global ultimo_uso = time()
+            global last_used = time()
         end
     end
 end

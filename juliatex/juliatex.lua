@@ -1,291 +1,306 @@
--- juliatex: parte Lua de juliatex.sty
--- Captura el código de cada bloque, lo ejecuta en Julia al final del documento
--- (una sola sesión, todos los bloques en orden) y en la siguiente pasada inserta
--- los resultados. Si el código no cambió, no vuelve a llamar a Julia.
+-- juliatex: Lua side of juliatex.sty
+-- Captures the code of each block, runs it in Julia at the end of the document
+-- (a single session, all blocks in order) and inserts the results on the next pass.
+-- If the code did not change, Julia is not called again.
 
 juliatex = {}
 local J = juliatex
 
-local aqui = debug.getinfo(1, "S").source:match("^@(.*)[/\\]") or "."
--- Ruta absoluta: el servidor de Julia arranca en TEMP, no en la carpeta del documento
-if not (aqui:match("^%a:") or aqui:match("^[/\\]")) then
-  aqui = lfs.currentdir():gsub("\\", "/") .. "/" .. aqui:gsub("^%./", "")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\]") or "."
+-- Absolute path: the Julia server starts in TEMP, not in the document folder
+if not (here:match("^%a:") or here:match("^[/\\]")) then
+  here = lfs.currentdir():gsub("\\", "/") .. "/" .. here:gsub("^%./", "")
 end
-local runner = aqui .. "/juliatex.jl"
--- Entorno de Julia: $JULIATEX_PROJECT o el Project.toml más cercano hacia arriba desde la
--- carpeta del documento (como julia --project=@.); nunca el entorno global
-local function buscar_proyecto(d)
+local runner = here .. "/juliatex.jl"
+-- Julia environment: $JULIATEX_PROJECT or the nearest Project.toml going up from the
+-- document folder (like julia --project=@.); never the global environment
+local function find_project(d)
   while d do
     if lfs.isfile(d .. "/Project.toml") then return d end
-    local padre = d:match("^(.*)[/\\][^/\\]+$")
-    if not padre or padre == d then return nil end
-    d = padre
+    local parent = d:match("^(.*)[/\\][^/\\]+$")
+    if not parent or parent == d then return nil end
+    d = parent
   end
 end
-local proyecto = os.getenv("JULIATEX_PROJECT")
-  or buscar_proyecto((lfs.currentdir():gsub("\\", "/")))
-if not proyecto then
-  tex.error("juliatex: no hay Project.toml en la carpeta del documento ni más arriba",
-    { "Crea uno (julia --project=. -e 'using Pkg; Pkg.add(\"Plots\")')",
-      "o define la variable JULIATEX_PROJECT con la carpeta del entorno." })
-  proyecto = "."
+local project = os.getenv("JULIATEX_PROJECT")
+  or find_project((lfs.currentdir():gsub("\\", "/")))
+if not project then
+  tex.error("juliatex: no Project.toml in the document folder or above it",
+    { "Create one (julia --project=. -e 'using Pkg; Pkg.add(\"Plots\")')",
+      "or set JULIATEX_PROJECT to the environment folder." })
+  project = "."
 end
 
 local base = ".juliatex"
 local dir = base .. "/" .. tex.jobname
 
-local bloques = {}   -- { tipo = "juliacode"|"juliarun"|"valor", codigo = "..." }
-local capturado
+local blocks = {}   -- { kind = "juliacode"|"juliarun"|"value", code = "..." }
+local captured
 
-local function leer(ruta)
-  local f = io.open(ruta, "rb")
+local function read(path)
+  local f = io.open(path, "rb")
   if not f then return nil end
   local s = f:read("*a")
   f:close()
   return s
 end
 
-local function escribir(ruta, s)
-  local f = assert(io.open(ruta, "wb"))
+local function write(path, s)
+  local f = assert(io.open(path, "wb"))
   f:write(s)
   f:close()
 end
 
-local function ruta(n, ext) return string.format("%s/%03d.%s", dir, n, ext) end
+local function path(n, ext) return string.format("%s/%03d.%s", dir, n, ext) end
 
 lfs.mkdir(base)
 lfs.mkdir(dir)
 
-local function aviso(msg)
+-- In LuaTeX os.execute returns the exit code (a number, truthy even when it is 1)
+local function run(cmd)
+  local r = os.execute(cmd)
+  return r == true or r == 0
+end
+
+local function warning(msg)
   texio.write_nl("term and log", "Package juliatex Warning: " .. msg)
   texio.write_nl("term and log", "")
 end
 
 if status.shell_escape ~= 1 then
-  tex.error("juliatex: hay que compilar con -shell-escape para poder lanzar Julia",
-    { "Agrega un .latexmkrc junto al .tex con:",
+  tex.error("juliatex: compile with -shell-escape so that Julia can be launched",
+    { "Add a .latexmkrc next to the .tex with:",
       "  $pdf_mode = 4;",
       "  $lualatex = 'lualatex -shell-escape %O %S';" })
 end
 
--- Las líneas entre \begin{...} y \end{...} no las ve TeX: las guarda Lua tal cual
-function J.capturar(tipo)
-  local lineas = {}
-  local fin = "^%s*\\end%s*{" .. tipo .. "}"
-  luatexbase.add_to_callback("process_input_buffer", function(linea)
-    if linea:match(fin) then
+-- TeX never sees the lines between \begin{...} and \end{...}: Lua keeps them verbatim
+function J.capture(kind)
+  local lines = {}
+  local stop = "^%s*\\end%s*{" .. kind .. "}"
+  luatexbase.add_to_callback("process_input_buffer", function(line)
+    if line:match(stop) then
       luatexbase.remove_from_callback("process_input_buffer", "juliatex")
-      capturado = table.concat(lineas, "\n")
-      return linea
+      captured = table.concat(lines, "\n")
+      return line
     end
-    table.insert(lineas, linea)
-    return "%" -- línea vacía para TeX (sin \par)
+    table.insert(lines, line)
+    return "%" -- empty line for TeX (no \par)
   end, "juliatex")
 end
 
--- Los resultados que lee Lua (no TeX) se anotan en el .fls: así latexmk ve que Julia los
--- cambió (o que apareció) y hace otra pasada; si no, un \juliav nuevo quedaba viejo en el PDF
-local function anotar(archivo)
-  if kpse.record_input_file then kpse.record_input_file(archivo) end
+-- Outputs read by Lua (not TeX) are recorded in the .fls: that way latexmk sees that Julia
+-- changed them and runs another pass; otherwise a new \juliav value stayed stale in the PDF
+local function record(file)
+  if kpse.record_input_file then kpse.record_input_file(file) end
 end
 
-local function resultado(n)
-  anotar(ruta(n, "out"))
-  local salida = leer(ruta(n, "out"))
-  if salida == nil then return nil end
-  local estado = leer(ruta(n, "status")) or "ok"
-  return salida, estado
+-- latexmk ignores the "Rerun" warning: it only reruns if a file in the .fls that existed
+-- when the pass started has changed. A new figure did not exist, so this marker changes
+local marker = dir .. "/pass"
+if not read(marker) then write(marker, "0\n") end
+record(marker)
+local function another_pass()
+  write(marker, os.time() .. " " .. os.clock() .. "\n")
+  warning("Rerun to get Julia outputs right.")
 end
 
-function J.cerrar(tipo)
-  local n = #bloques + 1
-  bloques[n] = { tipo = tipo, codigo = capturado or "" }
-  capturado = nil
-  if select(2, resultado(n)) == "error" then
-    aviso("Error de Julia en el bloque que termina en la línea " .. tex.inputlineno)
+local function result(n)
+  record(path(n, "out"))
+  local output = read(path(n, "out"))
+  if output == nil then return nil end
+  local state = read(path(n, "status")) or "ok"
+  return output, state
+end
+
+function J.close(kind)
+  local n = #blocks + 1
+  blocks[n] = { kind = kind, code = captured or "" }
+  captured = nil
+  if select(2, result(n)) == "error" then
+    warning("Julia error in the block ending on line " .. tex.inputlineno)
   end
-  if tipo ~= "juliacode" then
-    local _, estado = resultado(n)
-    if estado == "error" then
-      tex.sprint("\\JuliatexSalida{" .. ruta(n, "out") .. "}{error}")
+  if kind ~= "juliacode" then
+    local _, state = result(n)
+    if state == "error" then
+      tex.sprint("\\JuliatexOutput{" .. path(n, "out") .. "}{error}")
     end
     return
   end
-  escribir(ruta(n, "jl"), bloques[n].codigo .. "\n")
-  tex.sprint("\\JuliatexCodigo{" .. ruta(n, "jl") .. "}")
-  local salida, estado = resultado(n)
-  if salida == nil then
-    tex.sprint("\\par\\JuliatexPendiente\\par")
-  elseif salida:match("%S") then
-    tex.sprint("\\JuliatexSalida{" .. ruta(n, "out") .. "}{"
-      .. (estado == "error" and "error" or "salida") .. "}")
+  write(path(n, "jl"), blocks[n].code .. "\n")
+  tex.sprint("\\JuliatexCode{" .. path(n, "jl") .. "}")
+  local output, state = result(n)
+  if output == nil then
+    tex.sprint("\\par\\JuliatexPending\\par")
+  elseif output:match("%S") then
+    tex.sprint("\\JuliatexOutput{" .. path(n, "out") .. "}{"
+      .. (state == "error" and "error" or "output") .. "}")
   end
 end
 
-function J.valor(expr)
-  local n = #bloques + 1
-  bloques[n] = { tipo = "valor", codigo = expr }
-  local salida, estado = resultado(n)
-  if salida == nil then
-    tex.sprint("\\JuliatexPendiente")
-  elseif estado == "error" then
+function J.value(expr)
+  local n = #blocks + 1
+  blocks[n] = { kind = "value", code = expr }
+  local output, state = result(n)
+  if output == nil then
+    tex.sprint("\\JuliatexPending")
+  elseif state == "error" then
     tex.sprint("\\textcolor{juliatex@error}{\\texttt{error}}")
   else
-    tex.sprint(-2, (salida:gsub("%s+$", "")))
+    tex.sprint(-2, (output:gsub("%s+$", "")))
   end
 end
 
--- \juliagraphics: incluye una copia de la imagen (Julia puede reescribir el original con
--- savefig al final de esta pasada, cuando LuaTeX aún no termina de escribir el PDF)
-local figuras = {} -- { original, copia }
-function J.figura(archivo, opciones)
-  anotar(archivo)
-  local contenido = leer(archivo)
-  if not contenido then
-    tex.sprint("\\JuliatexSinFigura{")
-    tex.sprint(-2, archivo)
+-- \juliagraphics: includes a copy of the image (Julia may rewrite the original with
+-- savefig at the end of this pass, while LuaTeX is still writing the PDF)
+local figures = {} -- { original, copy }
+function J.graphics(file, options)
+  record(file)
+  local content = read(file)
+  if not content then
+    tex.sprint("\\JuliatexNoFigure{")
+    tex.sprint(-2, file)
     tex.sprint("}")
-    figuras[#figuras + 1] = { archivo, nil }
+    figures[#figures + 1] = { file, nil }
     return
   end
-  local copia = dir .. "/fig-" .. archivo:gsub("[/\\:]", "_")
-  if leer(copia) ~= contenido then escribir(copia, contenido) end
-  figuras[#figuras + 1] = { archivo, copia }
-  tex.sprint("\\includegraphics[" .. opciones .. "]{" .. copia .. "}")
+  local copy = dir .. "/fig-" .. file:gsub("[/\\:]", "_")
+  if read(copy) ~= content then write(copy, content) end
+  figures[#figures + 1] = { file, copy }
+  tex.sprint("\\includegraphics[" .. options .. "]{" .. copy .. "}")
 end
 
--- Servidor de Julia en segundo plano (juliatex_server.jl), uno por entorno. Su puerto
--- queda en %TEMP%/juliatex-<entorno>.port. Devuelve el bloque desde el que ejecutó, o nil
--- si no se pudo usar (entonces se usa el ejecutor de un solo uso).
+-- Background Julia server (juliatex_server.jl), one per environment. Its port is kept in
+-- %TEMP%/juliatex-<environment>.port. Returns the block it ran from, or nil if it could
+-- not be used (then the one-shot runner is used).
 local temp = (os.getenv("TEMP") or os.getenv("TMPDIR") or "/tmp"):gsub("\\", "/")
-local archivo_puerto = temp .. "/juliatex-" .. md5.sumhexa(proyecto):sub(1, 8) .. ".port"
+local port_file = temp .. "/juliatex-" .. md5.sumhexa(project):sub(1, 8) .. ".port"
 
-local function conectar(socket)
-  local s = leer(archivo_puerto)
-  local puerto = s and tonumber(s:match("^(%d+)"))
-  if not puerto then return nil end
+local function connect(socket)
+  local s = read(port_file)
+  local port = s and tonumber(s:match("^(%d+)"))
+  if not port then return nil end
   local c = socket.tcp()
   c:settimeout(2)
-  if c:connect("127.0.0.1", puerto) then return c end
+  if c:connect("127.0.0.1", port) then return c end
   c:close()
 end
 
-local function lanzar_servidor()
-  os.remove(archivo_puerto)
-  local script = (aqui .. "/juliatex_server.jl"):gsub("\\", "/")
+local function start_server()
+  os.remove(port_file)
+  local script = (here .. "/juliatex_server.jl"):gsub("\\", "/")
   if os.type == "windows" then
-    -- Start-Process sin redirecciones: el servidor no hereda la salida de lualatex
-    -- (si la heredara, latexmk/VimTeX esperarían a que el servidor terminara).
-    -- Arranca en TEMP: en la carpeta del documento, Windows no dejaría borrarla ni renombrarla
+    -- Start-Process without redirections: the server does not inherit lualatex's output
+    -- (if it did, latexmk/VimTeX would wait for the server to exit).
+    -- It starts in TEMP: Windows would not let you delete or rename the document folder
     os.execute(string.format(
       'powershell -NoProfile -NonInteractive -Command "Start-Process -WindowStyle Hidden'
         .. " -WorkingDirectory '%s' -FilePath julia"
         .. " -ArgumentList '--startup-file=no','--project=%s','%s','%s'\"",
-      temp, proyecto, script, archivo_puerto))
+      temp, project, script, port_file))
   else
     os.execute(string.format('julia --startup-file=no --project="%s" "%s" "%s" >/dev/null 2>&1 &',
-      proyecto, script, archivo_puerto))
+      project, script, port_file))
   end
 end
 
-function J.servidor(carpeta)
+function J.server(folder)
   local ok, socket = pcall(require, "socket")
   if not ok then return nil end
-  local c = conectar(socket)
+  local c = connect(socket)
   if not c then
-    texio.write_nl("term and log", "juliatex: iniciando el servidor de Julia...")
-    lanzar_servidor()
-    for _ = 1, 200 do -- hasta 20 s
+    texio.write_nl("term and log", "juliatex: starting the Julia server...")
+    start_server()
+    for _ = 1, 200 do -- up to 20 s
       socket.sleep(0.1)
-      c = conectar(socket)
+      c = connect(socket)
       if c then break end
     end
     if not c then return nil end
   end
-  c:settimeout(nil) -- la ejecución puede tardar lo que tarde el código
-  c:send(carpeta .. "\n")
+  c:settimeout(nil) -- running may take as long as the code takes
+  c:send(folder .. "\n")
   local resp = c:receive("*l")
   c:close()
   return resp and tonumber(resp:match("^ok (%d+)"))
 end
 
--- Opción [md]: <documento>.md junto al PDF (pandoc + juliatex-md.lua), con los mismos
--- resultados de Julia. Solo cuando ya no falta otra pasada, y solo si algo cambió
--- (el .tex, un resultado o una figura); pandoc tarda unas décimas de segundo.
+-- Option [md]: <document>.md next to the PDF (pandoc + juliatex-md.lua), with the same
+-- Julia outputs. Only when no other pass is needed, and only if something changed
+-- (the .tex, an output or a figure); pandoc takes a few tenths of a second.
 J.md = false
 local function markdown()
   if not J.md then return end
-  local partes = { leer(tex.jobname .. ".tex") or "" }
-  for n = 1, #bloques do partes[#partes + 1] = leer(ruta(n, "out")) or "" end
-  for _, f in ipairs(figuras) do partes[#partes + 1] = leer(f[1]) or "" end
-  local huella = md5.sumhexa(table.concat(partes, "\1"))
-  local salida = tex.jobname .. ".md"
-  if leer(dir .. "/huella-md") == huella and lfs.isfile(salida) then return end
+  local parts = { read(tex.jobname .. ".tex") or "" }
+  for n = 1, #blocks do parts[#parts + 1] = read(path(n, "out")) or "" end
+  for _, f in ipairs(figures) do parts[#parts + 1] = read(f[1]) or "" end
+  local hash = md5.sumhexa(table.concat(parts, "\1"))
+  local output = tex.jobname .. ".md"
+  if read(dir .. "/hash-md") == hash and lfs.isfile(output) then return end
   local pandoc = os.getenv("JULIATEX_PANDOC") or "pandoc"
   local cmd = string.format('%s -f latex+raw_tex -t gfm --wrap=none --lua-filter="%s"'
       .. ' -M juliatex-dir="%s" -o "%s" "%s"',
-    pandoc, aqui .. "/juliatex-md.lua", dir, salida, tex.jobname .. ".tex")
-  if os.execute(cmd) then
-    escribir(dir .. "/huella-md", huella)
-    texio.write_nl("term and log", "juliatex: " .. salida .. " actualizado")
+    pandoc, here .. "/juliatex-md.lua", dir, output, tex.jobname .. ".tex")
+  if run(cmd) then
+    write(dir .. "/hash-md", hash)
+    texio.write_nl("term and log", "juliatex: " .. output .. " updated")
   else
-    aviso("no se pudo generar " .. salida .. " (¿pandoc instalado y en el PATH?)")
+    warning("could not write " .. output .. " (is pandoc installed and on the PATH?)")
   end
 end
 
--- Al final del documento: si el código cambió, correr Julia y pedir otra pasada
-function J.ejecutar()
-  if #bloques == 0 then return markdown() end
-  local partes = { proyecto }
-  for n, b in ipairs(bloques) do
-    partes[#partes + 1] = n .. "\0" .. b.tipo .. "\0" .. b.codigo
+-- At the end of the document: if the code changed, run Julia and ask for another pass
+function J.run()
+  if #blocks == 0 then return markdown() end
+  local parts = { project }
+  for n, b in ipairs(blocks) do
+    parts[#parts + 1] = n .. "\0" .. b.kind .. "\0" .. b.code
   end
-  local huella = md5.sumhexa(table.concat(partes, "\1"))
-  if leer(dir .. "/huella") == huella then return markdown() end
+  local hash = md5.sumhexa(table.concat(parts, "\1"))
+  if read(dir .. "/hash") == hash then return markdown() end
 
-  local tipos = {}
-  for n, b in ipairs(bloques) do
-    escribir(ruta(n, "jl"), b.codigo .. "\n")
-    tipos[n] = b.tipo
+  local kinds = {}
+  for n, b in ipairs(blocks) do
+    write(path(n, "jl"), b.code .. "\n")
+    kinds[n] = b.kind
   end
-  escribir(dir .. "/tipos", table.concat(tipos, "\n") .. "\n")
+  write(dir .. "/kinds", table.concat(kinds, "\n") .. "\n")
 
-  local huellas = {}
-  for n, b in ipairs(bloques) do huellas[n] = md5.sumhexa(b.tipo .. "\0" .. b.codigo) end
-  escribir(dir .. "/huellas", table.concat(huellas, "\n") .. "\n")
+  local hashes = {}
+  for n, b in ipairs(blocks) do hashes[n] = md5.sumhexa(b.kind .. "\0" .. b.code) end
+  write(dir .. "/hashes", table.concat(hashes, "\n") .. "\n")
 
-  local antes = {}
-  for n = 1, #bloques do antes[n] = leer(ruta(n, "out")) end
+  local before = {}
+  for n = 1, #blocks do before[n] = read(path(n, "out")) end
 
-  -- Primero el servidor (sesión viva: paquetes cargados, solo desde el bloque que cambió);
-  -- si no está disponible, un Julia nuevo con todo en orden, como siempre
-  local desde = J.servidor(lfs.currentdir():gsub("\\", "/") .. "/" .. dir)
-  if desde then
-    texio.write_nl("term and log", "juliatex: servidor ejecutó desde el bloque " .. desde
-      .. " de " .. #bloques)
+  -- Server first (live session: packages loaded, only from the block that changed);
+  -- if it is not available, a fresh Julia runs everything in order
+  local from = J.server(lfs.currentdir():gsub("\\", "/") .. "/" .. dir)
+  if from then
+    texio.write_nl("term and log", "juliatex: server ran from block " .. from
+      .. " of " .. #blocks)
   else
-    texio.write_nl("term and log", "juliatex: ejecutando " .. #bloques .. " bloques en Julia...")
+    texio.write_nl("term and log", "juliatex: running " .. #blocks .. " blocks in Julia...")
     local cmd = string.format('julia --startup-file=no --project="%s" "%s" "%s"',
-      proyecto, runner, dir)
-    local ok = os.execute(cmd)
-    if not ok then
-      aviso("Julia terminó con error; revisa " .. dir .. "/julia.log")
+      project, runner, dir)
+    if not run(cmd) then
+      warning("Julia exited with an error; see " .. dir .. "/julia.log")
       return
     end
   end
-  escribir(dir .. "/huella", huella)
+  write(dir .. "/hash", hash)
 
-  for n = 1, #bloques do
-    if leer(ruta(n, "out")) ~= antes[n] then
-      aviso("Rerun to get Julia outputs right.")
+  for n = 1, #blocks do
+    if read(path(n, "out")) ~= before[n] then
+      another_pass()
       return
     end
   end
-  -- Gráficas nuevas o distintas de la copia incluida en esta pasada
-  for _, f in ipairs(figuras) do
-    local actual = leer(f[1])
-    if actual and (not f[2] or leer(f[2]) ~= actual) then
-      aviso("Rerun to get Julia outputs right.")
+  -- Figures that are new or differ from the copy included in this pass
+  for _, f in ipairs(figures) do
+    local current = read(f[1])
+    if current and (not f[2] or read(f[2]) ~= current) then
+      another_pass()
       return
     end
   end

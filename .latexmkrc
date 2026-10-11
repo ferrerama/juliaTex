@@ -1,5 +1,5 @@
-# juliatex: LuaLaTeX con -shell-escape para poder lanzar Julia desde el .tex
+# juliatex: LuaLaTeX with -shell-escape so that the .tex can launch Julia
 $pdf_mode = 4;
 $lualatex = 'lualatex -shell-escape %O %S';
-# El paquete viene en la carpeta juliatex/ del repositorio (no hace falta instalarlo)
+# The package ships in the repository's juliatex/ folder (no installation needed)
 ensure_path('TEXINPUTS', './juliatex//');

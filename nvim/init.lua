@@ -1,7 +1,7 @@
--- Neovim mínimo para LaTeX + Julia (juliatex), en Windows y Linux.
---   nvim -u nvim/init.lua analisis.tex
--- No toca tu configuración: los plugins y su lockfile quedan en nvim/.lazy/.
--- F5 en un .tex: compila continuo (latexmk) y abre el PDF; en un .jl: REPL con el archivo.
+-- Minimal Neovim for LaTeX + Julia (juliatex), on Windows and Linux.
+--   nvim -u nvim/init.lua analysis.tex
+-- It does not touch your own config: plugins and their lockfile live in nvim/.lazy/.
+-- F5 in a .tex: continuous build (latexmk) and opens the PDF; in a .jl: REPL with the file.
 local o = vim.opt
 o.autoindent = true
 o.smartindent = true
@@ -10,7 +10,7 @@ o.tabstop = 3
 o.shiftwidth = 3
 o.cursorline = true
 o.number = true
--- Líneas largas: se ven partidas entre palabras y con sangría (no cambia el archivo)
+-- Long lines: shown wrapped between words and indented (the file is not changed)
 o.linebreak = true
 o.breakindent = true
 o.showbreak = "↪ "
@@ -18,10 +18,10 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
 local windows = vim.fn.has("win32") == 1
-local aqui = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h")
+local here = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h")
 
--- Texto (.tex/.md): una oración por línea, sin corte automático (partiría también el
--- código de juliacode). Código Julia: guía en la columna 93 (guía de estilo: 92).
+-- Prose (.tex/.md): one sentence per line, no automatic wrapping (it would also break
+-- the code in juliacode). Julia code: guide at column 93 (style guide: 92).
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "tex", "markdown", "julia" },
   callback = function(ev)
@@ -32,22 +32,22 @@ vim.api.nvim_create_autocmd("FileType", {
     else
       vim.opt_local.textwidth = 0
       vim.opt_local.spell = true
-      vim.opt_local.spelllang = { "es", "en" }
+      vim.opt_local.spelllang = { "en" }
     end
   end,
 })
 
--- Visor de PDF: SumatraPDF en Windows (variable SUMATRA, PATH o instalación por defecto),
--- zathura en Linux si está; si no, el visor del sistema
+-- PDF viewer: SumatraPDF on Windows (SUMATRA variable, PATH or default install),
+-- zathura on Linux if present; otherwise the system viewer
 local function sumatra()
-  for _, ruta in ipairs({ os.getenv("SUMATRA") or "", vim.fn.exepath("SumatraPDF"),
+  for _, path in ipairs({ os.getenv("SUMATRA") or "", vim.fn.exepath("SumatraPDF"),
     (os.getenv("LOCALAPPDATA") or "") .. "/SumatraPDF/SumatraPDF.exe" }) do
-    if ruta ~= "" and vim.fn.executable(ruta) == 1 then return ruta end
+    if path ~= "" and vim.fn.executable(path) == 1 then return path end
   end
 end
 
--- lazy.nvim (gestor de plugins), instalado junto a este archivo
-local lazypath = aqui .. "/.lazy/lazy.nvim"
+-- lazy.nvim (plugin manager), installed next to this file
+local lazypath = here .. "/.lazy/lazy.nvim"
 if not vim.uv.fs_stat(lazypath) then
   vim.fn.system({ "git", "clone", "--filter=blob:none",
     "https://github.com/folke/lazy.nvim.git", "--branch=stable", lazypath })
@@ -57,10 +57,10 @@ o.runtimepath:prepend(lazypath)
 require("lazy").setup({
   {
     "lervag/vimtex",
-    lazy = false, -- vimtex no debe cargarse de forma diferida
+    lazy = false, -- vimtex must not be lazy-loaded
     init = function()
       vim.g.tex_flavor = "latex"
-      vim.g.vimtex_compiler_method = "latexmk" -- lee el .latexmkrc del proyecto
+      vim.g.vimtex_compiler_method = "latexmk" -- reads the project's .latexmkrc
       vim.g.vimtex_quickfix_open_on_warning = 0
       local sumatra = windows and sumatra()
       if sumatra then
@@ -72,7 +72,7 @@ require("lazy").setup({
       else
         vim.g.vimtex_view_method = "general"
       end
-      -- juliatex: código de Julia resaltado dentro de juliacode/juliarun
+      -- juliatex: Julia code highlighted inside juliacode/juliarun
       vim.g.vimtex_syntax_custom_envs = {
         { name = "juliacode", region = "texJuliaZone", nested = "julia" },
         { name = "juliarun", region = "texJuliaZone", nested = "julia" },
@@ -89,29 +89,29 @@ require("lazy").setup({
     end,
   },
 }, {
-  root = aqui .. "/.lazy",
-  lockfile = aqui .. "/lazy-lock.json",
-  state = aqui .. "/.lazy/state.json",
-  pkg = { cache = aqui .. "/.lazy/pkg-cache.lua" },
-  readme = { root = aqui .. "/.lazy/readme" },
+  root = here .. "/.lazy",
+  lockfile = here .. "/lazy-lock.json",
+  state = here .. "/.lazy/state.json",
+  pkg = { cache = here .. "/.lazy/pkg-cache.lua" },
+  readme = { root = here .. "/.lazy/readme" },
   rocks = { enabled = false },
 })
 
--- F5: una sola tecla por tipo de archivo
+-- F5: a single key per file type
 local function f5()
   local ft = vim.bo.filetype
   vim.cmd("write")
   if ft == "tex" then
-    vim.cmd("VimtexCompile") -- continuo: cada vez que guardas, PDF (y .md) al día
+    vim.cmd("VimtexCompile") -- continuous: every save brings the PDF (and .md) up to date
   elseif ft == "julia" then
-    local archivo = vim.fn.expand("%:p"):gsub("\\", "/")
+    local file = vim.fn.expand("%:p"):gsub("\\", "/")
     vim.cmd("botright split | resize 12")
-    vim.fn.jobstart({ "julia", "--project=@.", "-i", "-e", 'include("' .. archivo .. '")' },
+    vim.fn.jobstart({ "julia", "--project=@.", "-i", "-e", 'include("' .. file .. '")' },
       { term = true })
     vim.cmd("startinsert")
   else
-    vim.notify("F5: sin comando para " .. ft, vim.log.levels.WARN)
+    vim.notify("F5: no command for " .. ft, vim.log.levels.WARN)
   end
 end
-vim.keymap.set("n", "<F5>", f5, { desc = "Compilar / ejecutar" })
-vim.keymap.set("v", "<C-c>", '"+y', { desc = "Copiar" })
+vim.keymap.set("n", "<F5>", f5, { desc = "Build / run" })
+vim.keymap.set("v", "<C-c>", '"+y', { desc = "Copy" })
