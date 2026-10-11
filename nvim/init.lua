@@ -1,5 +1,5 @@
 -- Minimal Neovim for LaTeX + Julia (juliatex), on Windows and Linux.
---   nvim -u nvim/init.lua analysis.tex
+--   cd example && nvim -u ../nvim/init.lua analysis.tex
 -- It does not touch your own config: plugins and their lockfile live in nvim/.lazy/.
 -- F5 in a .tex: continuous build (latexmk) and opens the PDF; in a .jl: REPL with the file.
 local o = vim.opt

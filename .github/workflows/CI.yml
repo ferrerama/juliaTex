@@ -28,6 +28,7 @@ jobs:
     defaults:
       run:
         shell: bash
+        working-directory: example
     steps:
       - uses: actions/checkout@v5
       - uses: julia-actions/setup-julia@v3
@@ -58,15 +59,19 @@ jobs:
         with:
           name: example-julia${{ matrix.version }}-${{ matrix.os }}
           path: |
-            analysis.pdf
-            analysis.md
-            analysis.log
-            .juliatex/analysis/julia.log
+            example/analysis.pdf
+            example/analysis.md
+            example/analysis.log
+            example/.juliatex/analysis/julia.log
+          include-hidden-files: true
 
   readme-ubuntu:
     # Follows the README literally on Ubuntu: distribution packages + the official Julia installer
     name: README steps - Ubuntu (apt)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: example
     steps:
       - uses: actions/checkout@v5
       - name: Install LaTeX and pandoc (apt)
@@ -96,7 +101,8 @@ jobs:
         with:
           name: example-readme-ubuntu
           path: |
-            analysis.pdf
-            analysis.md
-            analysis.log
-            .juliatex/analysis/julia.log
+            example/analysis.pdf
+            example/analysis.md
+            example/analysis.log
+            example/.juliatex/analysis/julia.log
+          include-hidden-files: true
