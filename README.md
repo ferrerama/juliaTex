@@ -80,8 +80,8 @@ julia --project=. -e "using Pkg; Pkg.instantiate()"   # first time only (Plots t
 latexmk analysis.tex
 ```
 
-CorporateFinance.jl is not in the General registry yet: `Project.toml` points to its GitHub repository (`[sources]`, Julia 1.11+).
-On Julia 1.10, install it first with `julia --project=. -e "using Pkg; Pkg.add(url=\"https://github.com/ferrerama/CorporateFinance.jl\")"`.
+CorporateFinance.jl is not in the General registry yet: `Project.toml` points to its GitHub repository, pinned to the `v0.1.0` release (`[sources]`, Julia 1.11+).
+On Julia 1.10, install it first with `julia --project=. -e "using Pkg; Pkg.add(url=\"https://github.com/ferrerama/CorporateFinance.jl\", rev=\"v0.1.0\")"`.
 
 The `.latexmkrc` already asks for LuaLaTeX with `-shell-escape` (needed to launch Julia) and tells LaTeX the package is in `../juliatex/`: nothing has to be installed system-wide.
 

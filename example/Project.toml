@@ -3,7 +3,7 @@ CorporateFinance = "22164a04-0d11-4874-9102-ec58c08b414f"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 
 [sources]
-CorporateFinance = {url = "https://github.com/ferrerama/CorporateFinance.jl"}
+CorporateFinance = {url = "https://github.com/ferrerama/CorporateFinance.jl", rev = "v0.1.0"}
 
 [compat]
 Plots = "1"

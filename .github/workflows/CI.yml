@@ -37,7 +37,7 @@ jobs:
       - uses: julia-actions/cache@v3
       - name: Install Julia packages
         # CorporateFinance.jl is not registered: Julia 1.11+ reads [sources] in Project.toml, 1.10 needs the URL
-        run: julia --project=. -e 'using Pkg; VERSION < v"1.11" && Pkg.add(url = "https://github.com/ferrerama/CorporateFinance.jl"); Pkg.instantiate(); Pkg.precompile()'
+        run: julia --project=. -e 'using Pkg; VERSION < v"1.11" && Pkg.add(url = "https://github.com/ferrerama/CorporateFinance.jl", rev = "v0.1.0"); Pkg.instantiate(); Pkg.precompile()'
       - uses: r-lib/actions/setup-tinytex@v2
       - name: Install LaTeX packages
         shell: pwsh # on Windows tlmgr is a .bat, which bash cannot run
