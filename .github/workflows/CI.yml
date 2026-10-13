@@ -67,6 +67,73 @@ jobs:
             example/.juliatex/analysis/julia.log
           include-hidden-files: true
 
+  neovim-f5:
+    # F5 of nvim/init.lua on a lone .tex: no .latexmkrc, no chktexrc, no Project.toml
+    name: Neovim F5 - lone .tex - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+      - name: Install Julia packages (the example's environment, used by a lone .tex)
+        working-directory: example
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+      - uses: r-lib/actions/setup-tinytex@v2
+      - name: Install LaTeX packages
+        shell: pwsh # on Windows tlmgr is a .bat, which bash cannot run
+        run: tlmgr install latexmk listings
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Install the Neovim plugins
+        run: nvim --headless -u "$GITHUB_WORKSPACE/nvim/init.lua" "+Lazy! sync" +qa
+      - name: F5 on a lone .tex
+        run: |
+          mkdir -p "$RUNNER_TEMP/lone" && cd "$RUNNER_TEMP/lone"
+          cat > lone.tex <<'EOF'
+          \documentclass{article}
+          \usepackage{juliatex}
+          \begin{document}
+          A damped function and its plot.
+          \begin{juliacode}
+          using Plots
+          f(x) = exp(-0.1x) * sin(x)
+          plot(f, 0, 50, label = "f(x)")
+          savefig("plot.pdf");
+          \end{juliacode}
+          \juliagraphics[width=0.7\linewidth]{plot.pdf}
+          \end{document}
+          EOF
+          timeout 1200 nvim --headless -u "$GITHUB_WORKSPACE/nvim/init.lua" lone.tex \
+            -c 'exe "normal \<F5>"' \
+            -c 'lua vim.wait(1100000, function() return vim.fn.eval("b:vimtex.compiler.status") >= 2 end, 1000)' \
+            -c 'lua print("vimtex status " .. vim.fn.eval("b:vimtex.compiler.status"))' \
+            -c 'VimtexStop' -c 'qa!'
+          test -s lone.pdf
+          test -s plot.pdf
+          ! grep -E 'Package juliatex Warning|^! ' lone.log
+          grep -q 'fig-plot.pdf' lone.log
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: neovim-f5-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/lone/lone.log
+            ${{ runner.temp }}/lone/.juliatex/lone/julia.log
+          include-hidden-files: true
+
   readme-ubuntu:
     # Follows the README literally on Ubuntu: distribution packages + the official Julia installer
     name: README steps - Ubuntu (apt)

@@ -1,4 +1,4 @@
-# juliatex: Julia code is not LaTeX text (chktex reads "chktexrc" on Windows, ".chktexrc" on Linux)
+# juliatex: Julia code is not LaTeX text. nvim/init.lua points CHKTEXRC here (chktex reads "chktexrc" on Windows, ".chktexrc" on Linux)
 VerbEnvir
 {
     verbatim comment listing verbatimtab rawhtml errexam picture texdraw

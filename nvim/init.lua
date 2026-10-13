@@ -20,6 +20,12 @@ vim.g.maplocalleader = " "
 local windows = vim.fn.has("win32") == 1
 local here = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h")
 
+-- juliatex from this repository: any .tex finds the package and chktex its settings,
+-- with no .latexmkrc or chktexrc in the document's folder
+local pkgdir = vim.fn.fnamemodify(here .. "/../juliatex", ":p:h"):gsub("\\", "/")
+vim.env.TEXINPUTS = pkgdir .. "//" .. (windows and ";" or ":") .. (vim.env.TEXINPUTS or "")
+vim.env.CHKTEXRC = pkgdir
+
 -- Prose (.tex/.md): one sentence per line, no automatic wrapping (it would also break
 -- the code in juliacode). Julia code: guide at column 93 (style guide: 92).
 vim.api.nvim_create_autocmd("FileType", {
@@ -97,11 +103,25 @@ require("lazy").setup({
   rocks = { enabled = false },
 })
 
+-- Does the .tex load juliatex?
+local function uses_juliatex(buf)
+  local header = table.concat(vim.api.nvim_buf_get_lines(buf, 0, 200, false), "\n")
+  return header:match("\\usepackage%s*%b[]%s*{juliatex}") ~= nil
+    or header:match("\\usepackage%s*{juliatex}") ~= nil
+end
+
 -- F5: a single key per file type
 local function f5()
   local ft = vim.bo.filetype
   vim.cmd("write")
   if ft == "tex" then
+    -- juliatex needs LuaLaTeX with -shell-escape (to launch Julia): no .latexmkrc required
+    if uses_juliatex(0) and vim.b.vimtex then
+      vim.cmd([[let b:vimtex.compiler.get_engine = {-> '-lualatex -shell-escape'}]])
+      -- No Project.toml next to the .tex or above it: the example's environment (has Plots)
+      local own = vim.fs.find("Project.toml", { upward = true, path = vim.fn.expand("%:p:h") })[1]
+      vim.env.JULIATEX_PROJECT = (not own) and vim.fs.dirname(pkgdir) .. "/example" or nil
+    end
     vim.cmd("VimtexCompile") -- continuous: every save brings the PDF (and .md) up to date
   elseif ft == "julia" then
     local file = vim.fn.expand("%:p"):gsub("\\", "/")

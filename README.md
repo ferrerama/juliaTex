@@ -61,6 +61,7 @@ The enterprise value is \juliav{round(Int, r.enterprise_value)}.   % a value in 
 | Julia ≥ 1.10 | `winget install --id JuliaLang.Juliaup` | `curl -fsSL https://install.julialang.org \| sh` |
 | pandoc ≥ 3 (only for `[md]`) | `winget install --id JohnMacFarlane.Pandoc` | `sudo apt install pandoc` (Ubuntu 24.04 or later) |
 | PDF viewer (optional) | `winget install --id SumatraPDF.SumatraPDF` | zathura |
+| Neovim ≥ 0.11 and git (optional, for `nvim/`) | `winget install --id Neovim.Neovim` | the [official release](https://github.com/neovim/neovim/releases) (`apt` may ship an older one) |
 
 With TinyTeX, the packages the example uses:
 
@@ -92,6 +93,7 @@ The `.latexmkrc` already asks for LuaLaTeX with `-shell-escape` (needed to launc
 The CI workflow compiles the example from scratch on Linux and Windows, with Julia 1.10 (LTS) and the latest 1.x.
 
 For your own document, start from a copy of `example/` and point the `TEXINPUTS` line of its `.latexmkrc` to wherever `juliatex/` is; list the Julia packages you use in `Project.toml`.
+With the Neovim setup below, a lone `.tex` is enough.
 
 ## Neovim (optional)
 
@@ -104,11 +106,12 @@ nvim -u ../nvim/init.lua analysis.tex
 
 - The first time it downloads [lazy.nvim](https://github.com/folke/lazy.nvim), [vimtex](https://github.com/lervag/vimtex) and the nord theme into `nvim/.lazy/` (needs `git`).
 - **F5** in a `.tex`: continuous build with latexmk and the PDF open in the viewer; every save updates the PDF and the `.md`.
+  Any folder works, with no `.latexmkrc`: F5 finds the package in `juliatex/`, uses LuaLaTeX with `-shell-escape`, and, if there is no `Project.toml` next to the `.tex` or above it, the Julia environment of `example/`.
   In a `.jl`: opens a Julia REPL with the file loaded.
 - Julia code highlighted inside `juliacode`/`juliarun`, English spell checking.
 - Viewer: SumatraPDF on Windows (looked up on the `PATH`, in the default install, or in the `SUMATRA` variable), zathura on Linux.
 
-`example/chktexrc` (Windows) and `example/.chktexrc` (Linux) tell chktex that Julia code is not LaTeX text.
+`juliatex/chktexrc` (Windows) and `juliatex/.chktexrc` (Linux) tell chktex that Julia code is not LaTeX text; the Neovim setup points `CHKTEXRC` there.
 
 ## License
 
