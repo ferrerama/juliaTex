@@ -125,6 +125,34 @@ jobs:
           test -s plot.pdf
           ! grep -E 'Package juliatex Warning|^! ' lone.log
           grep -q 'fig-plot.pdf' lone.log
+      - name: Julia language server inside a .tex
+        # Installs LanguageServer.jl into nvim/lsp/ and waits for both errors on the .tex
+        run: |
+          mkdir -p "$RUNNER_TEMP/lsp" && cd "$RUNNER_TEMP/lsp"
+          cat > lsp.tex <<'EOF'
+          \documentclass{article}
+          \usepackage{juliatex}
+          \begin{document}
+          \begin{juliacode}
+          y = undefined_thing + 1
+          \end{juliacode}
+          A value: \juliav{nothere(3)}.
+          \end{document}
+          EOF
+          cat > check.lua <<'EOF'
+          vim.wait(1100000, function() return #vim.diagnostic.get(0) >= 2 end, 1000)
+          local out = {}
+          for _, d in ipairs(vim.diagnostic.get(0)) do
+            out[#out + 1] = ("L%d:%d %s"):format(d.lnum + 1, d.col, d.message)
+          end
+          vim.fn.writefile(out, "diagnostics.txt")
+          vim.cmd("qa!")
+          EOF
+          timeout 1200 nvim --headless -u "$GITHUB_WORKSPACE/nvim/init.lua" lsp.tex -c 'luafile check.lua'
+          cat diagnostics.txt
+          grep -q 'L5:4 Missing reference: undefined_thing' diagnostics.txt
+          grep -q 'L7:17 Missing reference: nothere' diagnostics.txt
+          test ! -e lsp.juliatex.jl
       - uses: actions/upload-artifact@v6
         if: always()
         with:

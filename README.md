@@ -38,7 +38,7 @@ The enterprise value is \juliav{round(Int, r.enterprise_value)}.   % a value in 
 | `example/` | A complete example: `analysis.tex` and its results (`analysis.md`, `analysis.pdf`, plots in `resources/`) |
 | `example/Project.toml` | The Julia environment of the example (`CorporateFinance` and `Plots`) |
 | `example/.latexmkrc` | LuaLaTeX with `-shell-escape`, and tells LaTeX where the package is |
-| `nvim/` | Optional minimal Neovim setup |
+| `nvim/` | Optional minimal Neovim setup, with the Julia language server inside the `.tex` |
 | `.github/workflows/CI.yml` | Compiles the example on every push (Linux and Windows) |
 
 ## How it works
@@ -111,6 +111,10 @@ nvim -u ../nvim/init.lua analysis.tex
   Any folder works, with no `.latexmkrc`: F5 finds the package in `juliatex/`, uses LuaLaTeX with `-shell-escape`, and, if there is no `Project.toml` next to the `.tex` or above it, the Julia environment of `example/`.
   In a `.jl`: opens a Julia REPL with the file loaded.
 - Julia code highlighted inside `juliacode`/`juliarun`, English spell checking.
+- Julia language server ([LanguageServer.jl](https://github.com/julia-vscode/LanguageServer.jl)) in `.jl` files and **inside the `.tex`**: in `juliacode`, `juliarun` and `\juliav{...}`, errors such as `Missing reference: x` show up on their line, with completion (after `.`, or **Ctrl-Space**), hover (**K**) and go-to-definition (**Ctrl-]**).
+  The first time it installs LanguageServer.jl into `nvim/lsp/` (a few minutes); it then takes about a minute to index the packages of the environment.
+  Packages are resolved with the same environment F5 uses: the `Project.toml` next to the file or above it, or else the one of `example/`.
+  For a `.tex` it writes a mirror of its Julia code, `<document>.juliatex.jl`, which it deletes when the `.tex` is closed.
 - Viewer: SumatraPDF on Windows (looked up on the `PATH`, in the default install, or in the `SUMATRA` variable), zathura on Linux.
 
 `juliatex/chktexrc` (Windows) and `juliatex/.chktexrc` (Linux) tell chktex that Julia code is not LaTeX text; the Neovim setup points `CHKTEXRC` there.

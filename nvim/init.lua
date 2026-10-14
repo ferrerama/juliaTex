@@ -2,6 +2,7 @@
 --   cd example && nvim -u ../nvim/init.lua analysis.tex
 -- It does not touch your own config: plugins and their lockfile live in nvim/.lazy/.
 -- F5 in a .tex: continuous build (latexmk) and opens the PDF; in a .jl: REPL with the file.
+-- Julia language server in .jl files and in the Julia code of a .tex (juliatex-lsp.lua).
 local o = vim.opt
 o.autoindent = true
 o.smartindent = true
@@ -174,12 +175,12 @@ vim.keymap.set("n", "<leader>ft", function()
   open_terminal(windows and { "pwsh", "-NoLogo" } or { vim.o.shell })
 end, { desc = "Terminal" })
 
--- Does the .tex load juliatex?
-local function uses_juliatex(buf)
-  local header = table.concat(vim.api.nvim_buf_get_lines(buf, 0, 200, false), "\n")
-  return header:match("\\usepackage%s*%b[]%s*{juliatex}") ~= nil
-    or header:match("\\usepackage%s*{juliatex}") ~= nil
-end
+-- Julia language server in .jl files and inside juliacode/juliarun/\juliav of a .tex.
+-- Code with no Project.toml above it uses the example's environment, as F5 does.
+local example_env = vim.fs.dirname(pkgdir) .. "/example"
+local lsp = dofile(here .. "/juliatex-lsp.lua")
+lsp.setup({ server_env = here:gsub("\\", "/") .. "/lsp", default_env = example_env })
+local uses_juliatex = lsp.uses_juliatex
 
 -- F5: a single key per file type
 local function f5()
@@ -191,7 +192,7 @@ local function f5()
       vim.cmd([[let b:vimtex.compiler.get_engine = {-> '-lualatex -shell-escape'}]])
       -- No Project.toml next to the .tex or above it: the example's environment (has Plots)
       local own = vim.fs.find("Project.toml", { upward = true, path = vim.fn.expand("%:p:h") })[1]
-      vim.env.JULIATEX_PROJECT = (not own) and vim.fs.dirname(pkgdir) .. "/example" or nil
+      vim.env.JULIATEX_PROJECT = (not own) and example_env or nil
     end
     vim.cmd("VimtexCompile") -- continuous: every save brings the PDF (and .md) up to date
   elseif ft == "julia" then
