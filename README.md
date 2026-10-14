@@ -38,6 +38,7 @@ The enterprise value is \juliav{round(Int, r.enterprise_value)}.   % a value in 
 | `example/` | A complete example: `analysis.tex` and its results (`analysis.md`, `analysis.pdf`, plots in `resources/`) |
 | `example/Project.toml` | The Julia environment of the example (`CorporateFinance` and `Plots`) |
 | `example/.latexmkrc` | LuaLaTeX with `-shell-escape`, and tells LaTeX where the package is |
+| `docs/reference.md` | Reference: options, environments, commands, caching, Markdown output, variables |
 | `nvim/` | Optional minimal Neovim setup, with the Julia language server inside the `.tex` |
 | `.github/workflows/CI.yml` | Compiles the example on every push (Linux and Windows) |
 
@@ -52,6 +53,8 @@ The enterprise value is \juliav{round(Int, r.enterprise_value)}.   % a value in 
 - pandoc writes the `.md` (a few tenths of a second) only on the last pass and only if something changed.
   Plots: GitHub does not show PDF inside a `.md`, so if there is an `x.svg` (or `x.png`) next to `x.pdf`, the `.md` uses that one.
   That is why the example calls `savefig` twice.
+
+Every option, command and setting is described in the [reference](docs/reference.md).
 
 ## Requirements
 
