@@ -85,6 +85,20 @@ require("lazy").setup({
       }
     end,
   },
+  -- Prose like a page: the .tex/.md window as wide as an APA 7 line (Times 12 pt, 2.54 cm
+  -- margins: ~95 characters), on the left and frameless: only padding on the right,
+  -- no "~" and no divider; see the "page" autocmd below
+  {
+    "shortcuts/no-neck-pain.nvim",
+    lazy = false,
+    opts = {
+      width = 95,
+      buffers = {
+        left = { enabled = false },
+        right = { wo = { fillchars = "eob: " } },
+      },
+    },
+  },
   {
     "shaunsingh/nord.nvim",
     lazy = false,
@@ -102,6 +116,63 @@ require("lazy").setup({
   readme = { root = here .. "/.lazy/readme" },
   rocks = { enabled = false },
 })
+
+-- "Page" (no-neck-pain): 95 columns on the left only while editing prose; code goes back
+-- to the full width. Terminals and quickfix (buftype ~= "") do not count.
+-- The divider is drawn by the left window: hidden with "vert: " while the page lasts and
+-- restored to the global value when it goes away.
+-- The plugin gives each side half of the free space (it is meant for centering); with no
+-- left side, the right one must take everything between the page and itself.
+do
+  local ui = require("no-neck-pain.ui")
+  local state = require("no-neck-pain.state")
+  local side_width = ui.get_side_width
+  ui.get_side_width = function(side)
+    local w = side_width(side)
+    if side ~= "right" or w <= 0 then return w end
+    local curr, right = state:get_side_id("curr"), state:get_side_id("right")
+    if curr and right and vim.api.nvim_win_is_valid(curr) and vim.api.nvim_win_is_valid(right) then
+      return math.max(vim.api.nvim_win_get_width(curr) + vim.api.nvim_win_get_width(right)
+        - _G.NoNeckPain.config.width, 1)
+    end
+    return 2 * w
+  end
+end
+local prose = { tex = true, plaintex = true, markdown = true }
+local function page_on()
+  return _G.NoNeckPain and _G.NoNeckPain.state and _G.NoNeckPain.state.enabled
+end
+vim.api.nvim_create_autocmd("BufEnter", {
+  callback = function(ev)
+    if vim.bo[ev.buf].buftype ~= "" or vim.bo[ev.buf].filetype == "" then return end
+    vim.schedule(function()
+      if not vim.api.nvim_buf_is_valid(ev.buf) or vim.api.nvim_get_current_buf() ~= ev.buf then return end
+      local wants = prose[vim.bo[ev.buf].filetype] == true
+      if wants and not page_on() then
+        require("no-neck-pain").enable()
+        vim.opt_local.fillchars:append({ vert = " " })
+      elseif page_on() and not wants then
+        require("no-neck-pain").disable()
+        vim.cmd("setlocal fillchars<")
+      end
+    end)
+  end,
+})
+
+-- Terminal: with the page on it opens below it, just as wide, and the right side keeps
+-- going from top to bottom, with no divider; otherwise across the full width.
+local function open_terminal(cmd)
+  local on_page = page_on() and vim.bo.filetype ~= "no-neck-pain"
+  -- "new", not "split": jobstart turns the current buffer into the terminal
+  vim.cmd(on_page and "belowright new" or "botright new")
+  vim.cmd("resize 12")
+  vim.fn.jobstart(cmd, { term = true })
+  if on_page then vim.opt_local.fillchars:append({ vert = " " }) end
+  vim.cmd("startinsert")
+end
+vim.keymap.set("n", "<leader>ft", function()
+  open_terminal(windows and { "pwsh", "-NoLogo" } or { vim.o.shell })
+end, { desc = "Terminal" })
 
 -- Does the .tex load juliatex?
 local function uses_juliatex(buf)
@@ -125,10 +196,7 @@ local function f5()
     vim.cmd("VimtexCompile") -- continuous: every save brings the PDF (and .md) up to date
   elseif ft == "julia" then
     local file = vim.fn.expand("%:p"):gsub("\\", "/")
-    vim.cmd("botright split | resize 12")
-    vim.fn.jobstart({ "julia", "--project=@.", "-i", "-e", 'include("' .. file .. '")' },
-      { term = true })
-    vim.cmd("startinsert")
+    open_terminal({ "julia", "--project=@.", "-i", "-e", 'include("' .. file .. '")' })
   else
     vim.notify("F5: no command for " .. ft, vim.log.levels.WARN)
   end
