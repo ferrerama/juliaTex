@@ -104,7 +104,9 @@ cd example
 nvim -u ../nvim/init.lua analysis.tex
 ```
 
-- The first time it downloads [lazy.nvim](https://github.com/folke/lazy.nvim), [vimtex](https://github.com/lervag/vimtex) and the nord theme into `nvim/.lazy/` (needs `git`).
+- The first time it downloads [lazy.nvim](https://github.com/folke/lazy.nvim), [vimtex](https://github.com/lervag/vimtex), [no-neck-pain](https://github.com/shortcuts/no-neck-pain.nvim) and the nord theme into `nvim/.lazy/` (needs `git`).
+- `.tex` and `.md` are edited as a page: 95 columns (an APA 7 line) on the left, with no frame or divider; code goes back to the full width.
+  **Space ft** opens a terminal below the page, just as wide (full width outside it).
 - **F5** in a `.tex`: continuous build with latexmk and the PDF open in the viewer; every save updates the PDF and the `.md`.
   Any folder works, with no `.latexmkrc`: F5 finds the package in `juliatex/`, uses LuaLaTeX with `-shell-escape`, and, if there is no `Project.toml` next to the `.tex` or above it, the Julia environment of `example/`.
   In a `.jl`: opens a Julia REPL with the file loaded.
