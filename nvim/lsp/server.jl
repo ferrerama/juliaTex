@@ -13,4 +13,7 @@ end
 using LanguageServer
 
 env = get(ARGS, 1, dirname(Base.active_project()))
-run(LanguageServerInstance(stdin, stdout, env))
+# The symbol server indexes packages in another Julia process, which only gets
+# JULIA_DEPOT_PATH if it is passed here: without it, it would look for them in ~/.julia
+depot = get(ENV, "JULIA_DEPOT_PATH", "")
+run(LanguageServerInstance(stdin, stdout, env, depot))
