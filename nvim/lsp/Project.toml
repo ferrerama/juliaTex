@@ -1,7 +1,8 @@
-# The Julia language server for nvim/init.lua (installed the first time it starts)
+# The Julia language server for nvim/init.lua (installed the first time it starts).
+# LanguageServer 4 is the last one for Julia 1.10; 6 needs 1.11+ (4 fails there)
 [deps]
 LanguageServer = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
 
 [compat]
-LanguageServer = "4"
+LanguageServer = "4, 6"
 julia = "1.10"

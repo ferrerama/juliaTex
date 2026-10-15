@@ -115,9 +115,13 @@ nvim -u ../nvim/init.lua analysis.tex
   In a `.jl`: opens a Julia REPL with the file loaded.
 - Julia code highlighted inside `juliacode`/`juliarun`, English spell checking.
 - Julia language server ([LanguageServer.jl](https://github.com/julia-vscode/LanguageServer.jl)) in `.jl` files and **inside the `.tex`**: in `juliacode`, `juliarun` and `\juliav{...}`, errors such as `Missing reference: x` show up on their line, with completion (after `.`, or **Ctrl-Space**), hover (**K**) and go-to-definition (**Ctrl-]**).
-  It needs **Julia 1.10**: `julia` if it is 1.10, or else `julia +1.10` (with juliaup: `juliaup add 1.10`); otherwise nvim warns and leaves it off.
-  LanguageServer.jl 4 fails to start on Julia 1.11+, and version 6 turns off missing references by default.
   The first time it installs LanguageServer.jl into `nvim/lsp/` (a few minutes); it then takes about a minute to index the packages of the environment.
+  It uses LanguageServer.jl 4 on Julia 1.10 and 6 on Julia 1.11+, installed again when the Julia version changes.
+  Version 6 leaves `Missing reference` off by default (too many false positives, upstream says); to turn it on, put a `JuliaLint.toml` in the document's folder or above it (`example/` has one):
+  ```toml
+  [rules]
+  missing_reference = "warning"
+  ```
   Packages are resolved with the same environment F5 uses: the `Project.toml` next to the file or above it, or else the one of `example/`.
   For a `.tex` it writes a mirror of its Julia code, `<document>.juliatex.jl`, which it deletes when the `.tex` is closed.
 - Viewer: SumatraPDF on Windows (looked up on the `PATH`, in the default install, or in the `SUMATRA` variable), zathura on Linux.

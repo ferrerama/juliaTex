@@ -1,0 +1,3 @@
+# Language server (nvim): LanguageServer.jl 6 (Julia 1.11+) leaves this off by default
+[rules]
+missing_reference = "warning"

@@ -201,25 +201,10 @@ end
 -- opts.server_env: folder with the server (Project.toml with LanguageServer, server.jl)
 -- opts.default_env: Julia environment for code with no Project.toml above it
 function M.setup(opts)
-  -- LanguageServer.jl 4 needs Julia 1.10 (on 1.11+ it fails to start, and 6 turns off
-  -- missing references by default): `julia` if it is 1.10, else juliaup's `julia +1.10`
-  local julia
-  for _, cmd in ipairs({ { "julia" }, { "julia", "+1.10" } }) do
-    local ok, out = pcall(vim.fn.system, vim.list_extend(vim.list_slice(cmd), { "--version" }))
-    if ok and vim.v.shell_error == 0 and out:match("^julia version 1%.10%.") then
-      julia = cmd
-      break
-    end
-  end
-  if not julia then
-    vim.notify("juliatex: the Julia language server needs Julia 1.10 (juliaup add 1.10); it is off",
-      vim.log.levels.WARN)
-    return
-  end
   local manifest = opts.server_env .. "/Manifest.toml"
   vim.lsp.config("julials", {
-    cmd = vim.list_extend(vim.list_slice(julia), { "--startup-file=no", "--history-file=no",
-      "--project=" .. opts.server_env, opts.server_env .. "/server.jl", opts.default_env }),
+    cmd = { "julia", "--startup-file=no", "--history-file=no", "--project=" .. opts.server_env,
+      opts.server_env .. "/server.jl", opts.default_env },
     filetypes = { "julia" },
     -- Root: the folder of the Project.toml above the file (as F5 does), or else the file's
     -- folder; never the .git, which would index the whole repository
@@ -244,8 +229,13 @@ function M.setup(opts)
       end
       -- Packages resolved with the root's Project.toml, or else with the default
       -- environment; never Julia's global one
+      -- (LanguageServer 6 renamed the notification; the Manifest says which one is running)
       local own = client.root_dir and vim.uv.fs_stat(client.root_dir .. "/Project.toml")
-      client:notify("julia/activateenvironment", { envPath = own and client.root_dir or opts.default_env })
+      local f = io.open(manifest)
+      local major = f and f:read("*a"):match('%[%[deps%.LanguageServer%]%].-\nversion = "(%d+)')
+      if f then f:close() end
+      client:notify(major == "4" and "julia/activateenvironment" or "julia/setEnvironmentPath",
+        { envPath = own and client.root_dir or opts.default_env })
     end,
   })
   vim.lsp.enable("julials")
