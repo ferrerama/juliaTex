@@ -13,7 +13,13 @@ end
 using LanguageServer
 
 env = get(ARGS, 1, dirname(Base.active_project()))
-# The symbol server indexes packages in another Julia process, which only gets
-# JULIA_DEPOT_PATH if it is passed here: without it, it would look for them in ~/.julia
-depot = get(ENV, "JULIA_DEPOT_PATH", "")
-run(LanguageServerInstance(stdin, stdout, env, depot))
+# On LanguageServer 4 the symbol server indexes packages in another Julia process, which
+# only gets JULIA_DEPOT_PATH if it is passed here: without it, it would look for them in
+# ~/.julia. LanguageServer 6 has no symbol server and no depot argument: its 4th argument
+# is the error handler
+if pkgversion(LanguageServer) < v"5"
+    depot = get(ENV, "JULIA_DEPOT_PATH", "")
+    run(LanguageServerInstance(stdin, stdout, env, depot))
+else
+    run(LanguageServerInstance(stdin, stdout, env))
+end
