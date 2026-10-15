@@ -96,7 +96,8 @@ require("lazy").setup({
       width = 95,
       buffers = {
         left = { enabled = false },
-        right = { wo = { fillchars = "eob: " } },
+        -- blank status line: the bottom bar ends where the page ends (colors: see "page" below)
+        right = { wo = { fillchars = "eob: ", statusline = " " } },
       },
     },
   },
@@ -138,6 +139,38 @@ do
     end
     return 2 * w
   end
+  -- The side's status line in the background color. The plugin gives the side window its
+  -- own highlight namespace, which overrides winhighlight, so it is set there.
+  local colors = require("no-neck-pain.colors")
+  local side_colors = colors.init
+  colors.init = function(win, side)
+    side_colors(win, side)
+    if win == nil or not vim.api.nvim_win_is_valid(win) then return end
+    local ns = vim.api.nvim_get_hl_ns({ winid = win })
+    if ns < 0 then return end
+    for _, g in ipairs({ "StatusLine", "StatusLineNC" }) do
+      vim.api.nvim_set_hl(ns, g, { link = "Normal" })
+    end
+  end
+end
+-- The corner between the page's status line and the side's is the page's last column (the
+-- divider's) and takes the page's StatusLine: in the background color, the bottom bar ends
+-- where the cursorline ends. The page's own bar keeps its colors through copies of them.
+local corner = "StatusLine:Normal,StatusLineNC:Normal"
+local function page_bar_colors()
+  vim.api.nvim_set_hl(0, "PageBar", vim.api.nvim_get_hl(0, { name = "StatusLine", link = false }))
+  vim.api.nvim_set_hl(0, "PageBarNC", vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false }))
+end
+page_bar_colors()
+vim.api.nvim_create_autocmd("ColorScheme", { callback = page_bar_colors })
+function _G.page_statusline()
+  local active = vim.g.statusline_winid == vim.api.nvim_get_current_win()
+  return (active and "%#PageBar#" or "%#PageBarNC#") .. "%<%f %h%m%r%=%-14.(%l,%c%V%) %P"
+end
+local function page_window()
+  vim.opt_local.fillchars:append({ vert = " " })
+  vim.opt_local.winhighlight = corner
+  vim.opt_local.statusline = "%!v:lua.page_statusline()"
 end
 local prose = { tex = true, plaintex = true, markdown = true }
 local function page_on()
@@ -151,10 +184,10 @@ vim.api.nvim_create_autocmd("BufEnter", {
       local wants = prose[vim.bo[ev.buf].filetype] == true
       if wants and not page_on() then
         require("no-neck-pain").enable()
-        vim.opt_local.fillchars:append({ vert = " " })
+        page_window()
       elseif page_on() and not wants then
         require("no-neck-pain").disable()
-        vim.cmd("setlocal fillchars<")
+        vim.cmd("setlocal fillchars< winhighlight< statusline<")
       end
     end)
   end,
@@ -168,7 +201,7 @@ local function open_terminal(cmd)
   vim.cmd(on_page and "belowright new" or "botright new")
   vim.cmd("resize 12")
   vim.fn.jobstart(cmd, { term = true })
-  if on_page then vim.opt_local.fillchars:append({ vert = " " }) end
+  if on_page then page_window() end
   vim.cmd("startinsert")
 end
 vim.keymap.set("n", "<leader>ft", function()
