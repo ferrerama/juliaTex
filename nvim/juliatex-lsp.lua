@@ -248,7 +248,9 @@ function M.setup(opts)
   })
   vim.lsp.enable("julials")
 
-  -- Native completion: pops up after "."; Ctrl-Space asks for it anywhere
+  -- Native completion, as you type: pops up after "." and once a word has 3 characters
+  -- (then typing filters the open menu); Ctrl-Space asks for it anywhere. Outside the Julia
+  -- blocks juliatex-ls answers nothing, so no menu shows up there.
   vim.o.completeopt = "menu,menuone,noselect,popup"
   api.nvim_create_autocmd("LspAttach", {
     callback = function(ev)
@@ -256,6 +258,17 @@ function M.setup(opts)
       if client and client:supports_method("textDocument/completion") then
         vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
         vim.keymap.set("i", "<C-Space>", vim.lsp.completion.get, { buffer = ev.buf, desc = "Complete" })
+        if vim.b[ev.buf].juliatex_autocomplete then return end
+        vim.b[ev.buf].juliatex_autocomplete = true
+        api.nvim_create_autocmd("TextChangedI", {
+          buffer = ev.buf,
+          callback = function()
+            if vim.fn.pumvisible() == 1 then return end
+            local col = api.nvim_win_get_cursor(0)[2]
+            local before = api.nvim_get_current_line():sub(1, col)
+            if #(before:match("[%w_]+$") or "") == 3 then vim.lsp.completion.get() end
+          end,
+        })
       end
     end,
   })
