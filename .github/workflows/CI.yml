@@ -125,6 +125,10 @@ jobs:
           test -s plot.pdf
           ! grep -E 'Package juliatex Warning|^! ' lone.log
           grep -q 'fig-plot.pdf' lone.log
+      # The language server needs Julia 1.10: from here on `julia` is 1.10
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.10'
       - name: Julia language server inside a .tex
         # Installs LanguageServer.jl into nvim/lsp/ and waits for both errors on the .tex
         run: |
