@@ -131,10 +131,9 @@ jobs:
           grep -q 'fig-plot.pdf' lone.log
       - name: Julia language server inside a .tex
         # Installs LanguageServer.jl into nvim/lsp/ and waits for both errors on the .tex.
-        # On Julia 1.11+ (LanguageServer 6) missing references need a JuliaLint.toml
+        # On Julia 1.11+ (LanguageServer 6) missing references need the JuliaLint.toml nvim writes
         run: |
           mkdir -p "$RUNNER_TEMP/lsp" && cd "$RUNNER_TEMP/lsp"
-          printf '[rules]\nmissing_reference = "warning"\n' > JuliaLint.toml
           cat > lsp.tex <<'EOF'
           \documentclass{article}
           \usepackage{juliatex}
@@ -158,6 +157,7 @@ jobs:
           cat diagnostics.txt
           grep -q 'L5:4 Missing reference: undefined_thing' diagnostics.txt
           grep -q 'L7:17 Missing reference: nothere' diagnostics.txt
+          grep -q 'missing_reference = "warning"' JuliaLint.toml
           test ! -e lsp.juliatex.jl
       - uses: actions/upload-artifact@v6
         if: always()

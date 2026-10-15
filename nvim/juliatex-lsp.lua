@@ -133,6 +133,14 @@ local function attach(buf)
   -- On disk before julials starts: LanguageServer.jl only publishes diagnostics for
   -- files it finds in its root folder
   write_file(path, lines)
+  -- LanguageServer 6 (Julia 1.11+) leaves missing references off unless a JuliaLint.toml
+  -- (next to the file or above it) turns them on: one next to the .tex if there is none
+  local dir = vim.fs.dirname(tex)
+  if not vim.fs.find("JuliaLint.toml", { upward = true, path = dir })[1] then
+    write_file(dir .. "/JuliaLint.toml", {
+      "# Written by juliatex (nvim): LanguageServer.jl 6 leaves this off by default",
+      "[rules]", 'missing_reference = "warning"' })
+  end
   local mirror = vim.fn.bufadd(path)
   vim.fn.bufload(mirror)
   vim.bo[mirror].buflisted = false
